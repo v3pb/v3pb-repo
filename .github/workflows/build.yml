@@ -8,50 +8,40 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/void-linux/void-linux:latest-full-x86_64
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies and configure environment
+      - name: Set up Void Linux environment and build
         run: |
-          xbps-install -Sy git curl xbps make-devel
-          
-          # Clone the official void-packages infrastructure
-          git clone https://github.com/void-linux/void-packages.git
-          cd void-packages
-          
-          # Initialize xbps-src
-          ./xbps-src binary-bootstrap
-
-      - name: Copy custom packages into void-packages
-        run: |
-          # Copy your custom srcpkgs into the void-packages tree
-          cp -r srcpkgs/* void-packages/srcpkgs/
-
-      - name: Build packages
-        run: |
-          cd void-packages
-          
-          # Accept restricted packages or configure options if needed
-          echo XBPS_ALLOW_RESTRICTED=yes >> etc/conf
-          
-          # Build your ladybird binary package
-          ./xbps-src pkg v3pb-ladybird-bin
+          # Install Docker tools if needed, or run void-packages via a docker container cleanly
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            ghcr.io/void-linux/void-linux:latest-full-x86_64 \
+            bash -c "
+              apt-get update && apt-get install -y git curl xbps make gcc || true
+              xbps-install -Sy git curl xbps make-devel gcc || true
+              
+              cd /workspace
+              git clone https://github.com/void-linux/void-packages.git
+              cd void-packages
+              ./xbps-src binary-bootstrap
+              
+              cp -r /workspace/srcpkgs/* srcpkgs/
+              echo XBPS_ALLOW_RESTRICTED=yes >> etc/conf
+              
+              ./xbps-src pkg v3pb-ladybird-bin
+              
+              mkdir -p /workspace/binpkgs
+              find hostdir/binpkgs -name '*.xbps' -exec cp {} /workspace/binpkgs/ \;
+            "
 
       - name: Generate Repository Index
         run: |
-          cd void-packages
-          
-          # Create a directory for final output binaries
-          mkdir -p ../binpkgs
-          find hostdir/binpkgs -name "*.xbps" -exec cp {} ../binpkgs/ \;
-          
-          # Index the repository
-          xbps-rindex -d ../binpkgs
-          xbps-rindex --sign-pkg ../binpkgs/*.xbps || true # (Optional signing step if you use keys later)
+          # Install xbps tools on the host runner to index the packages
+          sudo apt-get update && sudo apt-get install -y xbps
+          xbps-rindex -d binpkgs/
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
