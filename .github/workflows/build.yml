@@ -13,36 +13,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up and build package natively
-        run: |
-          # Install dependencies on the host Ubuntu runner
-          sudo apt-get update
-          sudo apt-get install -y git curl build-essential m4 tar wget bzip2 xz-utils libarchive-tools xbps
-
-          # Clone official void-packages infrastructure
-          git clone https://github.com/void-linux/void-packages.git
-          
-          # Copy custom package template into the tree
-          cp -r srcpkgs/* void-packages/srcpkgs/
-
-          cd void-packages
-          
-          # Initialize xbps-src
-          ./xbps-src binary-bootstrap
-
-          # Allow restricted packages if needed
-          echo XBPS_ALLOW_RESTRICTED=yes >> etc/conf
-
-          # Build the package
-          ./xbps-src pkg v3pb-ladybird-bin
-
-      - name: Generate Repository Index
-        run: |
-          mkdir -p binpkgs
-          find void-packages/hostdir/binpkgs -name "*.xbps" -exec cp {} binpkgs/ \;
-          
-          # Index the repository
-          xbps-rindex -d binpkgs/
+      - name: Build and Index in Void Linux Container
+        uses: docker://ghcr.io/void-linux/void-linux:latest-full-x86_64
+        with:
+          args: >-
+            sh -c "
+            xbps-install -Sy git curl xbps make-devel gcc tar findutils &&
+            git clone https://github.com/void-linux/void-packages.git &&
+            cp -r srcpkgs/* void-packages/srcpkgs/ &&
+            cd void-packages &&
+            ./xbps-src binary-bootstrap &&
+            echo XBPS_ALLOW_RESTRICTED=yes >> etc/conf &&
+            ./xbps-src pkg v3pb-ladybird-bin &&
+            mkdir -p /github/workspace/binpkgs &&
+            find hostdir/binpkgs -name '*.xbps' -exec cp {} /github/workspace/binpkgs/ \; &&
+            cd /github/workspace &&
+            xbps-rindex -d binpkgs/
+            "
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
