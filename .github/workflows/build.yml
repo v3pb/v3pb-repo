@@ -19,17 +19,17 @@ jobs:
           args: >-
             sh -c "
             xbps-install -Syu xbps &&
-            xbps-install -Sy bash git curl make gcc tar findutils &&
+            xbps-install -Sy bash git curl make gcc tar findutils shadow &&
+            useradd -m builder &&
             git clone https://github.com/void-linux/void-packages.git &&
             cp -r srcpkgs/* void-packages/srcpkgs/ &&
-            cd void-packages &&
-            ./xbps-src binary-bootstrap &&
-            echo XBPS_ALLOW_RESTRICTED=yes >> etc/conf &&
-            ./xbps-src pkg v3pb-ladybird-bin &&
+            chown -R builder:builder void-packages &&
+            su builder -c 'cd void-packages && ./xbps-src binary-bootstrap' &&
+            su builder -c 'cd void-packages && echo XBPS_ALLOW_RESTRICTED=yes >> etc/conf' &&
+            su builder -c 'cd void-packages && ./xbps-src pkg v3pb-ladybird-bin' &&
             mkdir -p /github/workspace/binpkgs &&
-            find hostdir/binpkgs -name '*.xbps' -exec cp {} /github/workspace/binpkgs/ \; &&
-            cd /github/workspace &&
-            xbps-rindex -d binpkgs/
+            find void-packages/hostdir/binpkgs -name '*.xbps' -exec cp {} /github/workspace/binpkgs/ \; &&
+            xbps-rindex -d /github/workspace/binpkgs/
             "
 
       - name: Upload artifacts
