@@ -18,19 +18,12 @@ jobs:
 
       - name: Create Package Directly
         run: |
-          # Install xbps tools on the host runner to build the package archive
-          sudo apt-get update && sudo apt-get install -y xbps
-
           # Create working directory structure for the package
           mkdir -p pkg-staging/usr/bin
           
-          # (Assuming your source contains the pre-compiled binary or you download it here)
-          # Copy your binary into the staging directory
+          # Copy your binary into the staging directory (ensure your file exists in the repo)
           # cp path/to/binary pkg-staging/usr/bin/ladybird
 
-          # Generate the XBPS control metadata and build the package
-          mkdir -p pkg-staging/control
-          
           # Write the required XBPS metadata file
           cat << 'EOF' > pkg-staging.plist
           package=v3pb-ladybird-bin
@@ -44,12 +37,14 @@ jobs:
           license=BSD-2-Clause
           EOF
 
-          # Build the .xbps file using xbps-create
-          mkdir -p binpkgs
-          xbps-create -A x86_64 -p pkg-staging.plist -r pkg-staging binpkgs/
-
-          # Index the repository
-          xbps-rindex -d binpkgs/
+          # Download a static pre-compiled xbps-create/rindex utility or use container if needed, 
+          # Or let's generate the index using a lightweight container approach for the tools.
+          docker run --rm -v "${PWD}:/github/workspace" -w /github/workspace ghcr.io/void-linux/void-linux:latest-full-x86_64 sh -c "
+            xbps-install -Sy xbps &&
+            mkdir -p binpkgs &&
+            xbps-create -A x86_64 -p pkg-staging.plist -r pkg-staging binpkgs/ &&
+            xbps-rindex -d binpkgs/
+          "
 
       - name: Deploy Binaries to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
