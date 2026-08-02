@@ -1,0 +1,26 @@
+# Template file for 'v3pb-ladybird-bin'
+pkgname=v3pb-ladybird-bin
+version=2026.07.05 # (or current git date/version tag)
+revision=1
+build_style="cmake"
+configure_args="-DENABLE_QT=ON"
+hostmakedepends="cmake ninja rust python3 qt6-tools qt6-base nasm ccache"
+makedepends="qt6-base-devel qt6-tools-devel qt6-wayland-devel libglvnd-devel fontconfig-devel"
+short_desc="Truly independent web browser (built from source for v3pb)"
+maintainer="v3pb <147268184+v3pb@users.noreply.github.com>"
+license="BSD-2-Clause"
+homepage="https://ladybird.org/"
+changelog="https://github.com/LadybirdBrowser/ladybird"
+# Using a git checkout source for tracking active development
+git_repository="https://github.com/LadybirdBrowser/ladybird.git"
+
+do_build() {
+    # Ladybird uses a python helper or standard cmake preset workflow
+    python3 Meta/ladybird.py build --release
+}
+
+do_install() {
+    # Install binaries and assets into the standard package destination
+    # (Adjust paths based on Ladybird's build output structure)
+    vbin Build/release/bin/Ladybird ladybird
+}
