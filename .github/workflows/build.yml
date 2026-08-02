@@ -18,7 +18,8 @@ jobs:
         with:
           args: >-
             sh -c "
-            xbps-install -Sy git curl xbps make-devel gcc tar findutils &&
+            xbps-install -Syu xbps &&
+            xbps-install -Sy git curl make-devel gcc tar findutils &&
             git clone https://github.com/void-linux/void-packages.git &&
             cp -r srcpkgs/* void-packages/srcpkgs/ &&
             cd void-packages &&
