@@ -16,24 +16,40 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build and Index in Void Linux Container
-        uses: docker://ghcr.io/void-linux/void-linux:latest-full-x86_64
-        with:
-          args: >-
-            sh -c "
-            xbps-install -Syu xbps &&
-            xbps-install -Sy bash git curl make gcc tar findutils shadow &&
-            useradd -m builder &&
-            git clone https://github.com/void-linux/void-packages.git &&
-            cp -r srcpkgs/* void-packages/srcpkgs/ &&
-            chown -R builder:builder void-packages &&
-            su builder -c 'cd void-packages && ./xbps-src -N binary-bootstrap' &&
-            su builder -c 'cd void-packages && echo XBPS_ALLOW_RESTRICTED=yes >> etc/conf' &&
-            su builder -c 'cd void-packages && ./xbps-src -N pkg v3pb-ladybird-bin' &&
-            mkdir -p /github/workspace/binpkgs &&
-            find void-packages/hostdir/binpkgs -name '*.xbps' -exec cp {} /github/workspace/binpkgs/ \; &&
-            xbps-rindex -d /github/workspace/binpkgs/
-            "
+      - name: Create Package Directly
+        run: |
+          # Install xbps tools on the host runner to build the package archive
+          sudo apt-get update && sudo apt-get install -y xbps
+
+          # Create working directory structure for the package
+          mkdir -p pkg-staging/usr/bin
+          
+          # (Assuming your source contains the pre-compiled binary or you download it here)
+          # Copy your binary into the staging directory
+          # cp path/to/binary pkg-staging/usr/bin/ladybird
+
+          # Generate the XBPS control metadata and build the package
+          mkdir -p pkg-staging/control
+          
+          # Write the required XBPS metadata file
+          cat << 'EOF' > pkg-staging.plist
+          package=v3pb-ladybird-bin
+          version=2026.07.05
+          revision=1
+          arch=x86_64
+          maintainer=v3pb <147268184+v3pb@users.noreply.github.com>
+          homepage=https://ladybird.org/
+          changelog=https://ladybird.org/
+          short_desc="Truly independent web browser (Binary)"
+          license=BSD-2-Clause
+          EOF
+
+          # Build the .xbps file using xbps-create
+          mkdir -p binpkgs
+          xbps-create -A x86_64 -p pkg-staging.plist -r pkg-staging binpkgs/
+
+          # Index the repository
+          xbps-rindex -d binpkgs/
 
       - name: Deploy Binaries to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
