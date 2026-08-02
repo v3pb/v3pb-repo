@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,13 +27,19 @@ jobs:
             git clone https://github.com/void-linux/void-packages.git &&
             cp -r srcpkgs/* void-packages/srcpkgs/ &&
             chown -R builder:builder void-packages &&
-            su builder -c 'cd void-packages && ./xbps-src binary-bootstrap' &&
+            su builder -c 'cd void-packages && ./xbps-src -N binary-bootstrap' &&
             su builder -c 'cd void-packages && echo XBPS_ALLOW_RESTRICTED=yes >> etc/conf' &&
-            su builder -c 'cd void-packages && ./xbps-src pkg v3pb-ladybird-bin' &&
+            su builder -c 'cd void-packages && ./xbps-src -N pkg v3pb-ladybird-bin' &&
             mkdir -p /github/workspace/binpkgs &&
             find void-packages/hostdir/binpkgs -name '*.xbps' -exec cp {} /github/workspace/binpkgs/ \; &&
             xbps-rindex -d /github/workspace/binpkgs/
             "
+
+      - name: Deploy Binaries to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./binpkgs
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
