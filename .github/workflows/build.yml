@@ -52,6 +52,8 @@ jobs:
           ln -sf ../lib/postman/Postman pkg-staging/usr/bin/postman
           echo "--- Full pkg-staging tree ---"
           find pkg-staging -maxdepth 4
+          echo "--- Broken symlinks in pkg-staging ---"
+          find pkg-staging -xtype l -exec ls -la {} \;
           echo "--- Host PWD ---"
           pwd
 
