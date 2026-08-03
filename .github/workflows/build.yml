@@ -10,17 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       new_version: ${{ steps.check.outputs.new_version }}
+      new_etag: ${{ steps.check.outputs.new_etag }}
       should_build: ${{ steps.check.outputs.should_build }}
     steps:
       - uses: actions/checkout@v4
       - id: check
         run: |
-          LATEST_URL=$(curl -sIL -o /dev/null -w '%{url_effective}' \
-            "https://dl.pstmn.io/download/latest/linux64")
-          LATEST_VERSION=$(echo "$LATEST_URL" | grep -oP '(?<=linux-x64-)[\d.]+(?=\.tar\.gz)')
-          CURRENT_VERSION=$(cat VERSION 2>/dev/null || echo "none")
+          HEADERS=$(curl -sI "https://dl.pstmn.io/download/latest/linux64")
+          ETAG=$(echo "$HEADERS" | grep -i '^etag:' | tr -d '\r' | awk '{print $2}' | tr -d '"')
+          LASTMOD=$(echo "$HEADERS" | grep -i '^last-modified:' | tr -d '\r' | cut -d' ' -f2-)
+          LATEST_VERSION=$(date -d "$LASTMOD" +%Y.%m.%d)
+          CURRENT_ETAG=$(cat ETAG 2>/dev/null || echo "none")
+
           echo "new_version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
-          if [ "$LATEST_VERSION" != "$CURRENT_VERSION" ] && [ -n "$LATEST_VERSION" ]; then
+          echo "new_etag=$ETAG" >> "$GITHUB_OUTPUT"
+
+          if [ "$ETAG" != "$CURRENT_ETAG" ] && [ -n "$ETAG" ]; then
             echo "should_build=true" >> "$GITHUB_OUTPUT"
           else
             echo "should_build=false" >> "$GITHUB_OUTPUT"
@@ -58,13 +63,15 @@ jobs:
           "
 
       - name: Record new version
-        run: echo "${{ needs.check-version.outputs.new_version }}" > VERSION
+        run: |
+          echo "${{ needs.check-version.outputs.new_version }}" > VERSION
+          echo "${{ needs.check-version.outputs.new_etag }}" > ETAG
 
       - name: Commit version bump
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add VERSION
+          git add VERSION ETAG
           git commit -m "Postman: bump to ${{ needs.check-version.outputs.new_version }}"
           git push
 
