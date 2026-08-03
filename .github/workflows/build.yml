@@ -38,18 +38,33 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Postman and build Void package
+      - name: Download Postman and stage package contents
         run: |
           VERSION="${{ needs.check-version.outputs.new_version }}"
           curl -sL "https://dl.pstmn.io/download/latest/linux64" -o postman.tar.gz
+          ls -la postman.tar.gz
           mkdir -p pkg-staging/usr/lib
           tar -xzf postman.tar.gz -C pkg-staging/usr/lib
+          echo "--- Contents of pkg-staging/usr/lib after extract ---"
+          ls -la pkg-staging/usr/lib
           mv pkg-staging/usr/lib/Postman pkg-staging/usr/lib/postman
           mkdir -p pkg-staging/usr/bin
           ln -sf ../lib/postman/Postman pkg-staging/usr/bin/postman
+          echo "--- Full pkg-staging tree ---"
+          find pkg-staging -maxdepth 4
+          echo "--- Host PWD ---"
+          pwd
 
+      - name: Build Void package
+        run: |
+          VERSION="${{ needs.check-version.outputs.new_version }}"
           docker run --rm -v "${PWD}:/github/workspace" -w /github/workspace \
             ghcr.io/void-linux/void-linux:latest-full-x86_64 sh -c "
+            echo '--- Inside container: /github/workspace ---' &&
+            pwd &&
+            ls -la &&
+            echo '--- Inside container: pkg-staging ---' &&
+            ls -la pkg-staging || echo 'pkg-staging NOT FOUND from inside container' &&
             xbps-install -Syu xbps &&
             mkdir -p binpkgs &&
             xbps-create -A x86_64 \
