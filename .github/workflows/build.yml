@@ -1,59 +1,76 @@
-name: Build v3pb Packages
-
+name: Build Postman Package
 on:
-  push:
-    branches: [ main, master ]
+  schedule:
+    - cron: '0 12 * * *'   # once a day
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
-  build:
+  check-version:
     runs-on: ubuntu-latest
-
+    outputs:
+      new_version: ${{ steps.check.outputs.new_version }}
+      should_build: ${{ steps.check.outputs.should_build }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create Package Directly
+      - uses: actions/checkout@v4
+      - id: check
         run: |
-          # Create working directory structure for the package
+          LATEST_URL=$(curl -sIL -o /dev/null -w '%{url_effective}' \
+            "https://dl.pstmn.io/download/latest/linux64")
+          LATEST_VERSION=$(echo "$LATEST_URL" | grep -oP '(?<=linux-x64-)[\d.]+(?=\.tar\.gz)')
+          CURRENT_VERSION=$(cat VERSION 2>/dev/null || echo "none")
+          echo "new_version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+          if [ "$LATEST_VERSION" != "$CURRENT_VERSION" ] && [ -n "$LATEST_VERSION" ]; then
+            echo "should_build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_build=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check-version
+    if: needs.check-version.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Postman and build Void package
+        run: |
+          VERSION="${{ needs.check-version.outputs.new_version }}"
+          curl -sL "https://dl.pstmn.io/download/latest/linux64" -o postman.tar.gz
+          mkdir -p pkg-staging/usr/lib
+          tar -xzf postman.tar.gz -C pkg-staging/usr/lib
+          mv pkg-staging/usr/lib/Postman pkg-staging/usr/lib/postman
           mkdir -p pkg-staging/usr/bin
-          
-          # Copy your binary into the staging directory (ensure your file exists in the repo)
-          # cp path/to/binary pkg-staging/usr/bin/ladybird
+          ln -sf ../lib/postman/Postman pkg-staging/usr/bin/postman
 
-          # Write the required XBPS metadata file
-          cat << 'EOF' > pkg-staging.plist
-          package=v3pb-ladybird-bin
-          version=2026.07.05
-          revision=1
-          arch=x86_64
-          maintainer=v3pb <147268184+v3pb@users.noreply.github.com>
-          homepage=https://ladybird.org/
-          changelog=https://ladybird.org/
-          short_desc="Truly independent web browser (Binary)"
-          license=BSD-2-Clause
-          EOF
-
-          # Download a static pre-compiled xbps-create/rindex utility or use container if needed, 
-          # Or let's generate the index using a lightweight container approach for the tools.
-          docker run --rm -v "${PWD}:/github/workspace" -w /github/workspace ghcr.io/void-linux/void-linux:latest-full-x86_64 sh -c "
-            xbps-install -Sy xbps &&
+          docker run --rm -v "${PWD}:/github/workspace" -w /github/workspace \
+            ghcr.io/void-linux/void-linux:latest-full-x86_64 sh -c "
+            xbps-install -Syu xbps &&
             mkdir -p binpkgs &&
-            xbps-create -A x86_64 -p pkg-staging.plist -r pkg-staging binpkgs/ &&
-            xbps-rindex -d binpkgs/
+            xbps-create -A x86_64 \
+              -n 'postman-bin-${VERSION}_1' \
+              -s 'API platform for building and testing APIs' \
+              -m 'v3pb <147268184+v3pb@users.noreply.github.com>' \
+              -l 'proprietary' \
+              pkg-staging &&
+            mv *.xbps binpkgs/ &&
+            xbps-rindex -a binpkgs/*.xbps
           "
 
-      - name: Deploy Binaries to GitHub Pages
+      - name: Record new version
+        run: echo "${{ needs.check-version.outputs.new_version }}" > VERSION
+
+      - name: Commit version bump
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add VERSION
+          git commit -m "Postman: bump to ${{ needs.check-version.outputs.new_version }}"
+          git push
+
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./binpkgs
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: v3pb-binaries
-          path: binpkgs/
+          keep_files: true
