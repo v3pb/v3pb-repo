@@ -71,7 +71,7 @@ jobs:
             xbps-install -Syu xbps &&
             mkdir -p binpkgs &&
             xbps-create -A x86_64 \
-              -n 'postman-bin-${VERSION}_1' \
+              -n 'v3pb-postman-desktop-bin-${VERSION}_1' \
               -s 'API platform for building and testing APIs' \
               -m 'v3pb <147268184+v3pb@users.noreply.github.com>' \
               -l 'proprietary' \
