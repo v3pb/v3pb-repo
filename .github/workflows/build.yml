@@ -49,7 +49,8 @@ jobs:
           ls -la pkg-staging/usr/lib
           mv pkg-staging/usr/lib/Postman pkg-staging/usr/lib/postman
           mkdir -p pkg-staging/usr/bin
-          ln -sf ../lib/postman/Postman pkg-staging/usr/bin/postman
+          printf '#!/bin/sh\nexec /usr/lib/postman/Postman "$@"\n' > pkg-staging/usr/bin/postman
+          chmod +x pkg-staging/usr/bin/postman
           echo "--- Full pkg-staging tree ---"
           find pkg-staging -maxdepth 4
           echo "--- Broken symlinks in pkg-staging ---"
