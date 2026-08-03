@@ -93,9 +93,11 @@ jobs:
           git commit -m "Postman: bump to ${{ needs.check-version.outputs.new_version }}"
           git push
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Publish package to GitHub Releases
+        uses: softprops/action-gh-release@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./binpkgs
-          keep_files: true
+          tag_name: latest
+          name: Latest Packages
+          body: Automatically built packages. Point your Void repo config at this release's download URL.
+          files: binpkgs/*
+          token: ${{ secrets.GITHUB_TOKEN }}
